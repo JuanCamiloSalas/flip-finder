@@ -19,6 +19,22 @@ enum PolygonType {
   ANALYZE
 }
 
+enum PropertyType {
+  APARTMENT
+  STUDIO
+  HOUSE
+  COMMERCIAL
+  OFFICE
+  LOT
+  WAREHOUSE
+  FARM
+}
+
+enum PropertyStatus {
+  NEW
+  USED
+}
+
 model Property {
   id             String        @id @default(uuid())
   link           String
@@ -56,10 +72,24 @@ model Polygon {
   georeference Unsupported("geometry(Polygon, 4326)")
   city         String
   polygon_type PolygonType
-  enabled      Boolean                         @default(true)
-  params       Json?
-  created_at   DateTime                        @default(now()) @db.Timestamptz
-  updated_at   DateTime                        @updatedAt @db.Timestamptz
+  enabled         Boolean                         @default(true)
+  property_type   PropertyType?
+  property_status PropertyStatus?
+  min_price       Int?
+  max_price       Int?
+  min_bedrooms    Int?                            @db.SmallInt
+  max_bedrooms    Int?                            @db.SmallInt
+  min_bathrooms   Int?                            @db.SmallInt
+  max_bathrooms   Int?                            @db.SmallInt
+  min_area        Int?
+  max_area        Int?
+  min_parking     Int?                            @db.SmallInt
+  max_parking     Int?                            @db.SmallInt
+  stratum         Int?                            @db.SmallInt
+  min_age         Int?                            @db.SmallInt
+  max_age         Int?                            @db.SmallInt
+  created_at      DateTime                        @default(now()) @db.Timestamptz
+  updated_at      DateTime                        @updatedAt @db.Timestamptz
 
   executions   Execution[]
 
