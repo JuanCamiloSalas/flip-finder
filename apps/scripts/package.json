@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "extract": "tsx src/extract.ts",
+    "analyse": "tsx src/analyse.ts",
     "prisma:generate": "prisma generate --schema=../backend/prisma/schema.prisma"
   },
   "dependencies": {
