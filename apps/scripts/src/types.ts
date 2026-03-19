@@ -27,6 +27,28 @@ export interface ExtractPolygon {
   max_age: number | null
 }
 
+export interface AnalyzePolygon {
+  id: string
+  name: string
+  georeference: GeoJsonPolygon
+  city: string
+  deviation_threshold: number
+  min_price: number | null
+  max_price: number | null
+  min_bedrooms: number | null
+  max_bedrooms: number | null
+  min_bathrooms: number | null
+  max_bathrooms: number | null
+  min_area: number | null
+  max_area: number | null
+  min_parking: number | null
+  max_parking: number | null
+  min_stratum: number | null
+  max_stratum: number | null
+  min_age: number | null
+  max_age: number | null
+}
+
 export interface ExtractParams {
   propertyType: "apartment" | "house"
   businessType: "sale" | "rent"
