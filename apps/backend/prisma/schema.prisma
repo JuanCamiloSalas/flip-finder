@@ -63,6 +63,8 @@ model Property {
   duplicated_of    Property?  @relation("DuplicateGroup", fields: [duplicated_of_id], references: [id])
   duplicates       Property[] @relation("DuplicateGroup")
 
+  potential_properties PotentialProperty[]
+
   @@map("properties")
 }
 
@@ -87,14 +89,29 @@ model Polygon {
   max_parking     Int?                            @db.SmallInt
   min_stratum     Int?                            @db.SmallInt
   max_stratum     Int?                            @db.SmallInt
-  min_age         Int?                            @db.SmallInt
-  max_age         Int?                            @db.SmallInt
-  created_at      DateTime                        @default(now()) @db.Timestamptz
-  updated_at      DateTime                        @updatedAt @db.Timestamptz
+  min_age              Int?                            @db.SmallInt
+  max_age              Int?                            @db.SmallInt
+  deviation_threshold  Int?                            @db.SmallInt
+  created_at           DateTime                        @default(now()) @db.Timestamptz
+  updated_at           DateTime                        @updatedAt @db.Timestamptz
 
-  executions   Execution[]
+  executions            Execution[]
+  potential_properties  PotentialProperty[]
 
   @@map("polygons")
+}
+
+model PotentialProperty {
+  id          String   @id @default(uuid())
+  polygon_id  String
+  polygon     Polygon  @relation(fields: [polygon_id], references: [id])
+  property_id String
+  property    Property @relation(fields: [property_id], references: [id])
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @updatedAt @db.Timestamptz
+
+  @@unique([polygon_id, property_id])
+  @@map("potential_properties")
 }
 
 enum ExecutionStatus {

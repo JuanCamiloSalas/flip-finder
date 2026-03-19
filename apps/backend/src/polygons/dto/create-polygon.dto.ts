@@ -75,4 +75,7 @@ export class CreatePolygonDto {
 
   @ApiPropertyOptional({ example: 20 })
   max_age?: number
+
+  @ApiPropertyOptional({ example: 20, description: "Deviation threshold percentage for ANALYZE polygons (e.g. 20 = -20%)" })
+  deviation_threshold?: number
 }

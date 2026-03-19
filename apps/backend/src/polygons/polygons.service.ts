@@ -20,6 +20,7 @@ const FILTER_COLUMNS = [
   "max_stratum",
   "min_age",
   "max_age",
+  "deviation_threshold",
 ] as const
 
 const ENUM_COLUMNS: Record<string, string> = {
@@ -38,7 +39,7 @@ const SELECT_COLUMNS = `
   min_area, max_area,
   min_parking, max_parking,
   min_stratum, max_stratum, min_age, max_age,
-  created_at, updated_at
+  deviation_threshold, created_at, updated_at
 `
 
 interface PolygonRow {
@@ -64,6 +65,7 @@ interface PolygonRow {
   max_stratum: number | null
   min_age: number | null
   max_age: number | null
+  deviation_threshold: number | null
   created_at: Date
   updated_at: Date
 }
