@@ -187,10 +187,104 @@ export class PropertiesService {
   }
 
   async bulkUpdate(items: BulkUpdateItemDto[]) {
-    const results = []
+    // 1. Group items by duplicated_group
+    const groups = new Map<string, BulkUpdateItemDto[]>()
+    const ungrouped: BulkUpdateItemDto[] = []
 
     for (const item of items) {
-      const { id, ...updates } = item
+      if (item.duplicated_group) {
+        const group = groups.get(item.duplicated_group) || []
+        group.push(item)
+        groups.set(item.duplicated_group, group)
+      } else {
+        ungrouped.push(item)
+      }
+    }
+
+    // 2. Process duplicate groups
+    for (const [, group] of groups) {
+      // Fetch full property data for each item in the group
+      const properties = await Promise.all(
+        group.map(async (item) => ({
+          item,
+          row: await this.prisma.$queryRawUnsafe<PropertyRow[]>(
+            `SELECT * FROM properties WHERE id = $1`,
+            item.id,
+          ).then((rows) => rows[0]),
+        })),
+      )
+
+      // Also fetch existing duplicates from DB that point to any member of this group
+      const groupIds = group.map((g) => g.id)
+      const existingDuplicates = await this.prisma.$queryRawUnsafe<PropertyRow[]>(
+        `SELECT * FROM properties WHERE duplicated_of_id = ANY($1::text[])`,
+        groupIds,
+      )
+
+      // Sort to pick main: 1) lowest price, 2) Finca Raíz, 3) random
+      properties.sort((a, b) => {
+        const priceDiff = Number(a.row.price) - Number(b.row.price)
+        if (priceDiff !== 0) return priceDiff
+
+        const aIsFincaRaiz = a.row.link.includes("fincaraiz") ? 1 : 0
+        const bIsFincaRaiz = b.row.link.includes("fincaraiz") ? 1 : 0
+        if (aIsFincaRaiz !== bIsFincaRaiz) return bIsFincaRaiz - aIsFincaRaiz
+
+        return 0
+      })
+
+      const mainProperty = properties[0]
+      const mainId = mainProperty.item.id
+      const mainRow = mainProperty.row
+
+      // Merge missing fields from duplicates into the main property
+      const fillableFields = ["floor", "elevator", "admin_price", "notes", "latitude", "longitude", "avg_age"] as const
+      const allRows = [...properties.map((p) => p.row), ...existingDuplicates]
+
+      for (const field of fillableFields) {
+        const mainValue = mainRow[field]
+        const isMissing =
+          mainValue === null ||
+          mainValue === 0 ||
+          (field === "elevator" && mainValue === false && mainRow.floor > 0)
+
+        if (!isMissing) continue
+
+        // Find a value from the duplicates
+        for (const row of allRows) {
+          if (row.id === mainId) continue
+          const val = row[field]
+          if (val !== null && val !== 0) {
+            ;(mainProperty.item as unknown as Record<string, unknown>)[field] = field === "admin_price" ? Number(val) : val
+            break
+          }
+        }
+      }
+
+      // Set duplicated_of_id
+      mainProperty.item.duplicated_of_id = null
+      for (const { item } of properties) {
+        if (item.id !== mainId) {
+          item.duplicated_of_id = mainId
+        }
+      }
+
+      // Reassign existing duplicates in DB to the new main
+      for (const dup of existingDuplicates) {
+        if (dup.id === mainId || groupIds.includes(dup.id)) continue
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE properties SET duplicated_of_id = $1 WHERE id = $2`,
+          mainId,
+          dup.id,
+        )
+      }
+    }
+
+    // 3. Apply all updates
+    const results = []
+
+    for (const item of [...ungrouped, ...Array.from(groups.values()).flat()]) {
+      const { id, duplicated_group: _, ...updates } = item
       if (Object.keys(updates).length === 0) continue
       const updated = await this.update(id, updates)
       results.push(updated)
