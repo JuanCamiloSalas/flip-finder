@@ -247,10 +247,32 @@ export class PropertiesService {
       const mainProperty = properties[0]
       const mainId = mainProperty.item.id
       const mainRow = mainProperty.row
+      const allRows = [...properties.map((p) => p.row), ...existingDuplicates]
+
+      // If any property in the group is REMODELED, mark all as REMODELED
+      const hasRemodeled = allRows.some((r) => r.state === "REMODELED")
+        || group.some((item) => item.state === "REMODELED")
+      if (hasRemodeled) {
+        for (const { item } of properties) {
+          item.state = "REMODELED"
+        }
+      }
+
+      // Merge all notes into the main property (deduplicated)
+      const allNotes = new Set<string>()
+      for (const row of allRows) {
+        if (row.notes) {
+          for (const note of row.notes.split(",").map((n) => n.trim()).filter(Boolean)) {
+            allNotes.add(note)
+          }
+        }
+      }
+      if (allNotes.size > 0) {
+        ;(mainProperty.item as unknown as Record<string, unknown>).notes = [...allNotes].join(", ")
+      }
 
       // Merge missing fields from duplicates into the main property
-      const fillableFields = ["floor", "elevator", "admin_price", "notes", "latitude", "longitude", "avg_age"] as const
-      const allRows = [...properties.map((p) => p.row), ...existingDuplicates]
+      const fillableFields = ["floor", "elevator", "admin_price", "latitude", "longitude", "avg_age"] as const
 
       for (const field of fillableFields) {
         const mainValue = mainRow[field]
