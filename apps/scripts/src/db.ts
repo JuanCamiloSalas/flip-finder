@@ -1,16 +1,16 @@
 import { PrismaClient } from "@prisma/client"
-import type { ExtractPolygon, AnalyzePolygon } from "./types.js"
+import type { ExtractFilter, AnalyzeFilter } from "./types.js"
 
 const prisma = new PrismaClient()
 
-export async function getExtractPolygons(): Promise<ExtractPolygon[]> {
+export async function getExtractFilters(): Promise<ExtractFilter[]> {
   const rows = await prisma.$queryRaw<
     {
       id: string
+      polygon_id: string
       name: string
       georeference: string
       city: string
-      enabled: boolean
       property_type: string | null
       property_status: string | null
       min_price: number | null
@@ -28,14 +28,16 @@ export async function getExtractPolygons(): Promise<ExtractPolygon[]> {
       max_age: number | null
     }[]
   >`
-    SELECT id, name, ST_AsGeoJSON(georeference)::text AS georeference,
-           city, enabled, property_type, property_status,
-           min_price, max_price, min_bedrooms, max_bedrooms,
-           min_bathrooms, max_bathrooms, min_area, max_area,
-           parking, min_stratum, max_stratum,
-           min_age, max_age
-    FROM polygons
-    WHERE polygon_type = 'EXTRACT' AND enabled = true
+    SELECT pf.id, pf.polygon_id, pf.name,
+           ST_AsGeoJSON(pg.georeference)::text AS georeference,
+           pg.city, pf.property_type, pf.property_status,
+           pf.min_price, pf.max_price, pf.min_bedrooms, pf.max_bedrooms,
+           pf.min_bathrooms, pf.max_bathrooms, pf.min_area, pf.max_area,
+           pf.parking, pf.min_stratum, pf.max_stratum,
+           pf.min_age, pf.max_age
+    FROM polygon_filters pf
+    JOIN polygons pg ON pg.id = pf.polygon_id
+    WHERE pf.type = 'EXTRACT' AND pf.enabled = true AND pg.enabled = true
   `
 
   return rows.map((row) => ({
@@ -135,10 +137,11 @@ export async function upsertProperties(
   return upserted
 }
 
-export async function getAnalyzePolygons(): Promise<AnalyzePolygon[]> {
+export async function getAnalyzeFilters(): Promise<AnalyzeFilter[]> {
   const rows = await prisma.$queryRaw<
     {
       id: string
+      polygon_id: string
       name: string
       georeference: string
       city: string
@@ -158,14 +161,17 @@ export async function getAnalyzePolygons(): Promise<AnalyzePolygon[]> {
       max_age: number | null
     }[]
   >`
-    SELECT id, name, ST_AsGeoJSON(georeference)::text AS georeference,
-           city, deviation_threshold,
-           min_price, max_price, min_bedrooms, max_bedrooms,
-           min_bathrooms, max_bathrooms, min_area, max_area,
-           parking, min_stratum, max_stratum,
-           min_age, max_age
-    FROM polygons
-    WHERE polygon_type = 'ANALYZE' AND enabled = true AND deviation_threshold IS NOT NULL
+    SELECT pf.id, pf.polygon_id, pf.name,
+           ST_AsGeoJSON(pg.georeference)::text AS georeference,
+           pg.city, pf.deviation_threshold,
+           pf.min_price, pf.max_price, pf.min_bedrooms, pf.max_bedrooms,
+           pf.min_bathrooms, pf.max_bathrooms, pf.min_area, pf.max_area,
+           pf.parking, pf.min_stratum, pf.max_stratum,
+           pf.min_age, pf.max_age
+    FROM polygon_filters pf
+    JOIN polygons pg ON pg.id = pf.polygon_id
+    WHERE pf.type = 'ANALYZE' AND pf.enabled = true AND pg.enabled = true
+      AND pf.deviation_threshold IS NOT NULL
   `
 
   return rows.map((row) => ({
@@ -184,30 +190,34 @@ export interface CandidateProperty {
   neighborhood: string
 }
 
-export async function getFilteredProperties(polygon: AnalyzePolygon): Promise<CandidateProperty[]> {
-  const conditions: string[] = ["p.duplicated_of_id IS NULL"]
-  const values: unknown[] = []
-
-  // Spatial filter: property must be inside the polygon
-  values.push(polygon.id)
+function addFilterConditions(filter: AnalyzeFilter, conditions: string[], values: unknown[]) {
+  // Spatial filter using the polygon's geometry
+  values.push(filter.polygon_id)
   conditions.push(`ST_Contains(
     (SELECT georeference FROM polygons WHERE id = $${values.length}),
     ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
   )`)
 
-  if (polygon.min_price !== null) { values.push(polygon.min_price); conditions.push(`p.price >= $${values.length}`) }
-  if (polygon.max_price !== null) { values.push(polygon.max_price); conditions.push(`p.price <= $${values.length}`) }
-  if (polygon.min_bedrooms !== null) { values.push(polygon.min_bedrooms); conditions.push(`p.rooms >= $${values.length}`) }
-  if (polygon.max_bedrooms !== null) { values.push(polygon.max_bedrooms); conditions.push(`p.rooms <= $${values.length}`) }
-  if (polygon.min_bathrooms !== null) { values.push(polygon.min_bathrooms); conditions.push(`p.bathrooms >= $${values.length}`) }
-  if (polygon.max_bathrooms !== null) { values.push(polygon.max_bathrooms); conditions.push(`p.bathrooms <= $${values.length}`) }
-  if (polygon.min_area !== null) { values.push(polygon.min_area); conditions.push(`p.area >= $${values.length}`) }
-  if (polygon.max_area !== null) { values.push(polygon.max_area); conditions.push(`p.area <= $${values.length}`) }
-  if (polygon.parking !== null) { values.push(polygon.parking); conditions.push(`p.parking = $${values.length}`) }
-  if (polygon.min_stratum !== null) { values.push(polygon.min_stratum); conditions.push(`p.stratum >= $${values.length}`) }
-  if (polygon.max_stratum !== null) { values.push(polygon.max_stratum); conditions.push(`p.stratum <= $${values.length}`) }
-  if (polygon.min_age !== null) { values.push(polygon.min_age); conditions.push(`p.avg_age >= $${values.length}`) }
-  if (polygon.max_age !== null) { values.push(polygon.max_age); conditions.push(`p.avg_age <= $${values.length}`) }
+  if (filter.min_price !== null) { values.push(filter.min_price); conditions.push(`p.price >= $${values.length}`) }
+  if (filter.max_price !== null) { values.push(filter.max_price); conditions.push(`p.price <= $${values.length}`) }
+  if (filter.min_bedrooms !== null) { values.push(filter.min_bedrooms); conditions.push(`p.rooms >= $${values.length}`) }
+  if (filter.max_bedrooms !== null) { values.push(filter.max_bedrooms); conditions.push(`p.rooms <= $${values.length}`) }
+  if (filter.min_bathrooms !== null) { values.push(filter.min_bathrooms); conditions.push(`p.bathrooms >= $${values.length}`) }
+  if (filter.max_bathrooms !== null) { values.push(filter.max_bathrooms); conditions.push(`p.bathrooms <= $${values.length}`) }
+  if (filter.min_area !== null) { values.push(filter.min_area); conditions.push(`p.area >= $${values.length}`) }
+  if (filter.max_area !== null) { values.push(filter.max_area); conditions.push(`p.area <= $${values.length}`) }
+  if (filter.parking !== null) { values.push(filter.parking); conditions.push(`p.parking = $${values.length}`) }
+  if (filter.min_stratum !== null) { values.push(filter.min_stratum); conditions.push(`p.stratum >= $${values.length}`) }
+  if (filter.max_stratum !== null) { values.push(filter.max_stratum); conditions.push(`p.stratum <= $${values.length}`) }
+  if (filter.min_age !== null) { values.push(filter.min_age); conditions.push(`p.avg_age >= $${values.length}`) }
+  if (filter.max_age !== null) { values.push(filter.max_age); conditions.push(`p.avg_age <= $${values.length}`) }
+}
+
+export async function getFilteredProperties(filter: AnalyzeFilter): Promise<CandidateProperty[]> {
+  const conditions: string[] = ["p.duplicated_of_id IS NULL"]
+  const values: unknown[] = []
+
+  addFilterConditions(filter, conditions, values)
 
   const query = `
     SELECT p.id, p.link, p.price_per_sqm::float, p.price::float, p.area::float, p.address, p.neighborhood
@@ -219,29 +229,11 @@ export async function getFilteredProperties(polygon: AnalyzePolygon): Promise<Ca
   return prisma.$queryRawUnsafe<CandidateProperty[]>(query, ...values)
 }
 
-export async function countReviewedProperties(polygon: AnalyzePolygon): Promise<number> {
+export async function countReviewedProperties(filter: AnalyzeFilter): Promise<number> {
   const conditions: string[] = ["p.duplicated_of_id IS NULL", "p.reviewed = true"]
   const values: unknown[] = []
 
-  values.push(polygon.id)
-  conditions.push(`ST_Contains(
-    (SELECT georeference FROM polygons WHERE id = $${values.length}),
-    ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
-  )`)
-
-  if (polygon.min_price !== null) { values.push(polygon.min_price); conditions.push(`p.price >= $${values.length}`) }
-  if (polygon.max_price !== null) { values.push(polygon.max_price); conditions.push(`p.price <= $${values.length}`) }
-  if (polygon.min_bedrooms !== null) { values.push(polygon.min_bedrooms); conditions.push(`p.rooms >= $${values.length}`) }
-  if (polygon.max_bedrooms !== null) { values.push(polygon.max_bedrooms); conditions.push(`p.rooms <= $${values.length}`) }
-  if (polygon.min_bathrooms !== null) { values.push(polygon.min_bathrooms); conditions.push(`p.bathrooms >= $${values.length}`) }
-  if (polygon.max_bathrooms !== null) { values.push(polygon.max_bathrooms); conditions.push(`p.bathrooms <= $${values.length}`) }
-  if (polygon.min_area !== null) { values.push(polygon.min_area); conditions.push(`p.area >= $${values.length}`) }
-  if (polygon.max_area !== null) { values.push(polygon.max_area); conditions.push(`p.area <= $${values.length}`) }
-  if (polygon.parking !== null) { values.push(polygon.parking); conditions.push(`p.parking = $${values.length}`) }
-  if (polygon.min_stratum !== null) { values.push(polygon.min_stratum); conditions.push(`p.stratum >= $${values.length}`) }
-  if (polygon.max_stratum !== null) { values.push(polygon.max_stratum); conditions.push(`p.stratum <= $${values.length}`) }
-  if (polygon.min_age !== null) { values.push(polygon.min_age); conditions.push(`p.avg_age >= $${values.length}`) }
-  if (polygon.max_age !== null) { values.push(polygon.max_age); conditions.push(`p.avg_age <= $${values.length}`) }
+  addFilterConditions(filter, conditions, values)
 
   const query = `
     SELECT COUNT(*)::int AS count
@@ -254,29 +246,11 @@ export async function countReviewedProperties(polygon: AnalyzePolygon): Promise<
   return rows[0]?.count ?? 0
 }
 
-export async function getMedianPricePerSqm(polygon: AnalyzePolygon): Promise<number | null> {
+export async function getMedianPricePerSqm(filter: AnalyzeFilter): Promise<number | null> {
   const conditions: string[] = ["p.duplicated_of_id IS NULL", "p.reviewed = true"]
   const values: unknown[] = []
 
-  values.push(polygon.id)
-  conditions.push(`ST_Contains(
-    (SELECT georeference FROM polygons WHERE id = $${values.length}),
-    ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
-  )`)
-
-  if (polygon.min_price !== null) { values.push(polygon.min_price); conditions.push(`p.price >= $${values.length}`) }
-  if (polygon.max_price !== null) { values.push(polygon.max_price); conditions.push(`p.price <= $${values.length}`) }
-  if (polygon.min_bedrooms !== null) { values.push(polygon.min_bedrooms); conditions.push(`p.rooms >= $${values.length}`) }
-  if (polygon.max_bedrooms !== null) { values.push(polygon.max_bedrooms); conditions.push(`p.rooms <= $${values.length}`) }
-  if (polygon.min_bathrooms !== null) { values.push(polygon.min_bathrooms); conditions.push(`p.bathrooms >= $${values.length}`) }
-  if (polygon.max_bathrooms !== null) { values.push(polygon.max_bathrooms); conditions.push(`p.bathrooms <= $${values.length}`) }
-  if (polygon.min_area !== null) { values.push(polygon.min_area); conditions.push(`p.area >= $${values.length}`) }
-  if (polygon.max_area !== null) { values.push(polygon.max_area); conditions.push(`p.area <= $${values.length}`) }
-  if (polygon.parking !== null) { values.push(polygon.parking); conditions.push(`p.parking = $${values.length}`) }
-  if (polygon.min_stratum !== null) { values.push(polygon.min_stratum); conditions.push(`p.stratum >= $${values.length}`) }
-  if (polygon.max_stratum !== null) { values.push(polygon.max_stratum); conditions.push(`p.stratum <= $${values.length}`) }
-  if (polygon.min_age !== null) { values.push(polygon.min_age); conditions.push(`p.avg_age >= $${values.length}`) }
-  if (polygon.max_age !== null) { values.push(polygon.max_age); conditions.push(`p.avg_age <= $${values.length}`) }
+  addFilterConditions(filter, conditions, values)
 
   const query = `
     SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY p.price_per_sqm::float) AS median
@@ -290,7 +264,7 @@ export async function getMedianPricePerSqm(polygon: AnalyzePolygon): Promise<num
 }
 
 export async function upsertPotentialProperties(
-  polygonId: string,
+  polygonFilterId: string,
   propertyIds: string[],
 ): Promise<number> {
   if (propertyIds.length === 0) return 0
@@ -305,14 +279,14 @@ export async function upsertPotentialProperties(
 
     for (const propId of batch) {
       const offset = values.length
-      values.push(polygonId, propId)
+      values.push(polygonFilterId, propId)
       rows.push(`(gen_random_uuid(), $${offset + 1}, $${offset + 2}, NOW(), NOW())`)
     }
 
     const query = `
-      INSERT INTO potential_properties (id, polygon_id, property_id, created_at, updated_at)
+      INSERT INTO potential_properties (id, polygon_filter_id, property_id, created_at, updated_at)
       VALUES ${rows.join(", ")}
-      ON CONFLICT (polygon_id, property_id) DO UPDATE SET updated_at = NOW()
+      ON CONFLICT (polygon_filter_id, property_id) DO UPDATE SET updated_at = NOW()
     `
 
     await prisma.$executeRawUnsafe(query, ...values)
@@ -323,12 +297,12 @@ export async function upsertPotentialProperties(
 }
 
 export async function getLastExecution(
-  polygonId: string,
+  polygonFilterId: string,
   type: "EXTRACT" | "ANALYZE",
 ): Promise<Date | null> {
   const rows = await prisma.$queryRaw<{ performed_at: Date }[]>`
     SELECT performed_at FROM executions
-    WHERE polygon_id = ${polygonId} AND type = ${type}::"PolygonType" AND status = 'SUCCESS'
+    WHERE polygon_filter_id = ${polygonFilterId} AND type = ${type}::"PolygonType" AND status = 'SUCCESS'
     ORDER BY performed_at DESC
     LIMIT 1
   `
@@ -336,7 +310,7 @@ export async function getLastExecution(
 }
 
 export async function createExecution(execution: {
-  polygonId: string
+  polygonFilterId: string
   type: "EXTRACT" | "ANALYZE"
   status: "SUCCESS" | "FAILED" | "SKIPPED"
   propertiesFound: number
@@ -344,8 +318,8 @@ export async function createExecution(execution: {
   performedAt: Date
 }): Promise<void> {
   await prisma.$executeRaw`
-    INSERT INTO executions (id, polygon_id, type, status, properties_found, properties_new, performed_at, created_at)
-    VALUES (gen_random_uuid(), ${execution.polygonId}, ${execution.type}::"PolygonType",
+    INSERT INTO executions (id, polygon_filter_id, type, status, properties_found, properties_new, performed_at, created_at)
+    VALUES (gen_random_uuid(), ${execution.polygonFilterId}, ${execution.type}::"PolygonType",
             ${execution.status}::"ExecutionStatus", ${execution.propertiesFound},
             ${execution.propertiesNew}, ${execution.performedAt}, NOW())
   `

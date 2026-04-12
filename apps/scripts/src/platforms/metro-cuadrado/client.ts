@@ -5,7 +5,7 @@ import {
 } from "../dictionary.js"
 import { transformMetroCuadrado } from "./transformer.js"
 import type {
-  ExtractPolygon,
+  ExtractFilter,
   ExtractParams,
   RawProperty,
   PlatformClient,
@@ -20,7 +20,7 @@ interface McBatch {
   seller: { from: number }
 }
 
-function buildFilter(polygon: ExtractPolygon, params: ExtractParams) {
+function buildFilter(polygon: ExtractFilter, params: ExtractParams) {
   // Convert GeoJSON [lng, lat] to MetroCuadrado [lat, lng] strings
   const geoShapeValues = polygon.georeference.coordinates[0].map((coord) => [
     String(coord[1]),
@@ -136,7 +136,7 @@ async function fetchPage(
 }
 
 async function fetchAllProperties(
-  polygon: ExtractPolygon,
+  polygon: ExtractFilter,
   params: ExtractParams,
   since: Date | null,
 ): Promise<RawProperty[]> {
