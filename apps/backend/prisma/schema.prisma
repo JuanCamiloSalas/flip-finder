@@ -70,47 +70,61 @@ model Property {
 }
 
 model Polygon {
-  id           String                          @id @default(uuid())
+  id           String                              @id @default(uuid())
   name         String
   georeference Unsupported("geometry(Polygon, 4326)")
   city         String
-  polygon_type PolygonType
-  enabled         Boolean                         @default(true)
-  property_type   PropertyType?
-  property_status PropertyStatus?
-  min_price       Int?
-  max_price       Int?
-  min_bedrooms    Int?                            @db.SmallInt
-  max_bedrooms    Int?                            @db.SmallInt
-  min_bathrooms   Int?                            @db.SmallInt
-  max_bathrooms   Int?                            @db.SmallInt
-  min_area        Int?
-  max_area        Int?
-  parking         Boolean?
-  min_stratum     Int?                            @db.SmallInt
-  max_stratum     Int?                            @db.SmallInt
-  min_age              Int?                            @db.SmallInt
-  max_age              Int?                            @db.SmallInt
-  deviation_threshold  Int?                            @db.SmallInt
-  created_at           DateTime                        @default(now()) @db.Timestamptz
-  updated_at           DateTime                        @updatedAt @db.Timestamptz
+  enabled      Boolean                             @default(true)
+  created_at   DateTime                            @default(now()) @db.Timestamptz
+  updated_at   DateTime                            @updatedAt @db.Timestamptz
 
-  executions            Execution[]
-  potential_properties  PotentialProperty[]
+  filters      PolygonFilter[]
 
   @@map("polygons")
 }
 
-model PotentialProperty {
-  id          String   @id @default(uuid())
-  polygon_id  String
-  polygon     Polygon  @relation(fields: [polygon_id], references: [id])
-  property_id String
-  property    Property @relation(fields: [property_id], references: [id])
-  created_at  DateTime @default(now()) @db.Timestamptz
-  updated_at  DateTime @updatedAt @db.Timestamptz
+model PolygonFilter {
+  id                  String          @id @default(uuid())
+  polygon_id          String
+  polygon             Polygon         @relation(fields: [polygon_id], references: [id])
+  name                String
+  type                PolygonType
+  enabled             Boolean         @default(true)
+  property_type       PropertyType?
+  property_status     PropertyStatus?
+  min_price           Int?
+  max_price           Int?
+  min_bedrooms        Int?            @db.SmallInt
+  max_bedrooms        Int?            @db.SmallInt
+  min_bathrooms       Int?            @db.SmallInt
+  max_bathrooms       Int?            @db.SmallInt
+  min_area            Int?
+  max_area            Int?
+  parking             Boolean?
+  min_stratum         Int?            @db.SmallInt
+  max_stratum         Int?            @db.SmallInt
+  min_age             Int?            @db.SmallInt
+  max_age             Int?            @db.SmallInt
+  deviation_threshold Int?            @db.SmallInt
+  created_at          DateTime        @default(now()) @db.Timestamptz
+  updated_at          DateTime        @updatedAt @db.Timestamptz
 
-  @@unique([polygon_id, property_id])
+  executions           Execution[]
+  potential_properties PotentialProperty[]
+
+  @@map("polygon_filters")
+}
+
+model PotentialProperty {
+  id                String        @id @default(uuid())
+  polygon_filter_id String
+  polygon_filter    PolygonFilter @relation(fields: [polygon_filter_id], references: [id])
+  property_id       String
+  property          Property      @relation(fields: [property_id], references: [id])
+  created_at        DateTime      @default(now()) @db.Timestamptz
+  updated_at        DateTime      @updatedAt @db.Timestamptz
+
+  @@unique([polygon_filter_id, property_id])
   @@map("potential_properties")
 }
 
@@ -121,15 +135,15 @@ enum ExecutionStatus {
 }
 
 model Execution {
-  id               String          @id @default(uuid())
-  polygon_id       String
-  polygon          Polygon         @relation(fields: [polygon_id], references: [id])
-  type             PolygonType
-  status           ExecutionStatus
-  properties_found Int             @default(0)
-  properties_new   Int             @default(0)
-  performed_at     DateTime        @db.Timestamptz
-  created_at       DateTime        @default(now()) @db.Timestamptz
+  id                String          @id @default(uuid())
+  polygon_filter_id String
+  polygon_filter    PolygonFilter   @relation(fields: [polygon_filter_id], references: [id])
+  type              PolygonType
+  status            ExecutionStatus
+  properties_found  Int             @default(0)
+  properties_new    Int             @default(0)
+  performed_at      DateTime        @db.Timestamptz
+  created_at        DateTime        @default(now()) @db.Timestamptz
 
   @@map("executions")
 }
