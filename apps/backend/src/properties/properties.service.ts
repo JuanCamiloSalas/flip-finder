@@ -60,7 +60,7 @@ interface PropertyRow {
 }
 
 interface PropertyFilters {
-  polygonId?: string
+  polygonFilterId?: string
   minArea?: string
   maxArea?: string
   state?: string
@@ -247,10 +247,32 @@ export class PropertiesService {
       const mainProperty = properties[0]
       const mainId = mainProperty.item.id
       const mainRow = mainProperty.row
+      const allRows = [...properties.map((p) => p.row), ...existingDuplicates]
+
+      // If any property in the group is REMODELED, mark all as REMODELED
+      const hasRemodeled = allRows.some((r) => r.state === "REMODELED")
+        || group.some((item) => item.state === "REMODELED")
+      if (hasRemodeled) {
+        for (const { item } of properties) {
+          item.state = "REMODELED"
+        }
+      }
+
+      // Merge all notes into the main property (deduplicated)
+      const allNotes = new Set<string>()
+      for (const row of allRows) {
+        if (row.notes) {
+          for (const note of row.notes.split(",").map((n) => n.trim()).filter(Boolean)) {
+            allNotes.add(note)
+          }
+        }
+      }
+      if (allNotes.size > 0) {
+        ;(mainProperty.item as unknown as Record<string, unknown>).notes = [...allNotes].join(", ")
+      }
 
       // Merge missing fields from duplicates into the main property
-      const fillableFields = ["floor", "elevator", "admin_price", "notes", "latitude", "longitude", "avg_age"] as const
-      const allRows = [...properties.map((p) => p.row), ...existingDuplicates]
+      const fillableFields = ["floor", "elevator", "admin_price", "latitude", "longitude", "avg_age"] as const
 
       for (const field of fillableFields) {
         const mainValue = mainRow[field]
@@ -316,18 +338,18 @@ export class PropertiesService {
     const conditions: string[] = []
     const values: unknown[] = []
 
-    if (filters?.polygonId) {
-      values.push(filters.polygonId)
+    if (filters?.polygonFilterId) {
+      values.push(filters.polygonFilterId)
       const pidx = values.length
 
-      // Spatial filter
+      // Spatial filter: join polygon_filters -> polygons to get geometry
       conditions.push(`p.latitude IS NOT NULL AND p.longitude IS NOT NULL AND ST_Contains(
-        (SELECT georeference FROM polygons WHERE id = $${pidx}),
+        (SELECT pg.georeference FROM polygon_filters pf JOIN polygons pg ON pg.id = pf.polygon_id WHERE pf.id = $${pidx}),
         ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
       )`)
 
-      // Apply polygon's own filter criteria
-      const polygonRows = await this.prisma.$queryRawUnsafe<{
+      // Apply polygon filter's criteria
+      const filterRows = await this.prisma.$queryRawUnsafe<{
         min_price: number | null; max_price: number | null
         min_bedrooms: number | null; max_bedrooms: number | null
         min_bathrooms: number | null; max_bathrooms: number | null
@@ -338,23 +360,23 @@ export class PropertiesService {
       }[]>(`SELECT min_price, max_price, min_bedrooms, max_bedrooms,
               min_bathrooms, max_bathrooms, min_area, max_area, parking,
               min_stratum, max_stratum, min_age, max_age
-            FROM polygons WHERE id = $1`, filters.polygonId)
+            FROM polygon_filters WHERE id = $1`, filters.polygonFilterId)
 
-      if (polygonRows.length > 0) {
-        const pg = polygonRows[0]
-        if (pg.min_price !== null) { values.push(pg.min_price); conditions.push(`p.price >= $${values.length}`) }
-        if (pg.max_price !== null) { values.push(pg.max_price); conditions.push(`p.price <= $${values.length}`) }
-        if (pg.min_bedrooms !== null) { values.push(pg.min_bedrooms); conditions.push(`p.rooms >= $${values.length}`) }
-        if (pg.max_bedrooms !== null) { values.push(pg.max_bedrooms); conditions.push(`p.rooms <= $${values.length}`) }
-        if (pg.min_bathrooms !== null) { values.push(pg.min_bathrooms); conditions.push(`p.bathrooms >= $${values.length}`) }
-        if (pg.max_bathrooms !== null) { values.push(pg.max_bathrooms); conditions.push(`p.bathrooms <= $${values.length}`) }
-        if (pg.min_area !== null) { values.push(pg.min_area); conditions.push(`p.area >= $${values.length}`) }
-        if (pg.max_area !== null) { values.push(pg.max_area); conditions.push(`p.area <= $${values.length}`) }
-        if (pg.parking !== null) { values.push(pg.parking); conditions.push(`p.parking = $${values.length}`) }
-        if (pg.min_stratum !== null) { values.push(pg.min_stratum); conditions.push(`p.stratum >= $${values.length}`) }
-        if (pg.max_stratum !== null) { values.push(pg.max_stratum); conditions.push(`p.stratum <= $${values.length}`) }
-        if (pg.min_age !== null) { values.push(pg.min_age); conditions.push(`p.avg_age >= $${values.length}`) }
-        if (pg.max_age !== null) { values.push(pg.max_age); conditions.push(`p.avg_age <= $${values.length}`) }
+      if (filterRows.length > 0) {
+        const pf = filterRows[0]
+        if (pf.min_price !== null) { values.push(pf.min_price); conditions.push(`p.price >= $${values.length}`) }
+        if (pf.max_price !== null) { values.push(pf.max_price); conditions.push(`p.price <= $${values.length}`) }
+        if (pf.min_bedrooms !== null) { values.push(pf.min_bedrooms); conditions.push(`p.rooms >= $${values.length}`) }
+        if (pf.max_bedrooms !== null) { values.push(pf.max_bedrooms); conditions.push(`p.rooms <= $${values.length}`) }
+        if (pf.min_bathrooms !== null) { values.push(pf.min_bathrooms); conditions.push(`p.bathrooms >= $${values.length}`) }
+        if (pf.max_bathrooms !== null) { values.push(pf.max_bathrooms); conditions.push(`p.bathrooms <= $${values.length}`) }
+        if (pf.min_area !== null) { values.push(pf.min_area); conditions.push(`p.area >= $${values.length}`) }
+        if (pf.max_area !== null) { values.push(pf.max_area); conditions.push(`p.area <= $${values.length}`) }
+        if (pf.parking !== null) { values.push(pf.parking); conditions.push(`p.parking = $${values.length}`) }
+        if (pf.min_stratum !== null) { values.push(pf.min_stratum); conditions.push(`p.stratum >= $${values.length}`) }
+        if (pf.max_stratum !== null) { values.push(pf.max_stratum); conditions.push(`p.stratum <= $${values.length}`) }
+        if (pf.min_age !== null) { values.push(pf.min_age); conditions.push(`p.avg_age >= $${values.length}`) }
+        if (pf.max_age !== null) { values.push(pf.max_age); conditions.push(`p.avg_age <= $${values.length}`) }
       }
     }
 

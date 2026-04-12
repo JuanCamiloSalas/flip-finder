@@ -1,5 +1,5 @@
 import {
-  getExtractPolygons,
+  getExtractFilters,
   getLastExecution,
   upsertProperties,
   createExecution,
@@ -7,7 +7,7 @@ import {
 } from "./db.js"
 import { metroCuadradoClient } from "./platforms/metro-cuadrado/client.js"
 import { fincaRaizClient } from "./platforms/finca-raiz/client.js"
-import type { PlatformClient, ExtractPolygon, ExtractParams, RawProperty } from "./types.js"
+import type { PlatformClient, ExtractFilter, ExtractParams, RawProperty } from "./types.js"
 
 const platforms: PlatformClient[] = [metroCuadradoClient, fincaRaizClient]
 
@@ -50,46 +50,47 @@ function parseAvgAge(age: string): number | null {
   return AGE_MAP[age] ?? null
 }
 
-function buildParams(polygon: ExtractPolygon): ExtractParams {
+function buildParams(filter: ExtractFilter): ExtractParams {
   return {
-    propertyType: (polygon.property_type ? PROPERTY_TYPE_MAP[polygon.property_type] : undefined) ?? "apartment",
+    propertyType: (filter.property_type ? PROPERTY_TYPE_MAP[filter.property_type] : undefined) ?? "apartment",
     businessType: "sale",
-    status: (polygon.property_status ? PROPERTY_STATUS_MAP[polygon.property_status] : undefined) ?? "used",
-    priceRange: buildRange(polygon.min_price, polygon.max_price),
-    areaRange: buildRange(polygon.min_area, polygon.max_area),
-    rooms: buildIntArray(polygon.min_bedrooms, polygon.max_bedrooms),
-    bathrooms: buildIntArray(polygon.min_bathrooms, polygon.max_bathrooms),
-    parking: polygon.parking ? [1, 2, 3, 4, 5] : undefined,
-    stratum: buildIntArray(polygon.min_stratum, polygon.max_stratum),
+    status: (filter.property_status ? PROPERTY_STATUS_MAP[filter.property_status] : undefined) ?? "used",
+    priceRange: buildRange(filter.min_price, filter.max_price),
+    areaRange: buildRange(filter.min_area, filter.max_area),
+    rooms: buildIntArray(filter.min_bedrooms, filter.max_bedrooms),
+    bathrooms: buildIntArray(filter.min_bathrooms, filter.max_bathrooms),
+    parking: filter.parking ? [1, 2, 3, 4, 5] : undefined,
+    stratum: buildIntArray(filter.min_stratum, filter.max_stratum),
   }
 }
 
 async function main() {
   console.log("Starting extraction...")
 
-  const polygons = await getExtractPolygons()
-  console.log(`Found ${polygons.length} EXTRACT polygon(s)`)
+  const filters = await getExtractFilters()
+  console.log(`Found ${filters.length} EXTRACT filter(s)`)
 
-  if (polygons.length === 0) {
-    console.log("No polygons to process. Exiting.")
+  if (filters.length === 0) {
+    console.log("No filters to process. Exiting.")
     await disconnect()
+    process.exit(0)
     return
   }
 
   const performedAt = new Date()
   let totalUpserted = 0
 
-  for (const polygon of polygons) {
-    console.log(`\nProcessing polygon: ${polygon.name} (${polygon.city})`)
+  for (const filter of filters) {
+    console.log(`\nProcessing filter: ${filter.name} (${filter.city})`)
 
-    const lastExecution = await getLastExecution(polygon.id, "EXTRACT")
+    const lastExecution = await getLastExecution(filter.id, "EXTRACT")
     if (lastExecution) {
       console.log(`  Last successful extraction: ${lastExecution.toISOString()}`)
     } else {
-      console.log("  First extraction for this polygon")
+      console.log("  First extraction for this filter")
     }
 
-    const params: ExtractParams = buildParams(polygon)
+    const params: ExtractParams = buildParams(filter)
 
     const allProperties: RawProperty[] = []
     let hasFailed = false
@@ -97,7 +98,7 @@ async function main() {
     for (const platform of platforms) {
       try {
         const properties = await platform.fetchProperties(
-          polygon,
+          filter,
           params,
           lastExecution,
         )
@@ -135,7 +136,7 @@ async function main() {
     console.log(`  Upserted ${upserted} properties into DB`)
 
     await createExecution({
-      polygonId: polygon.id,
+      polygonFilterId: filter.id,
       type: "EXTRACT",
       status: hasFailed ? "FAILED" : "SUCCESS",
       propertiesFound: allProperties.length,

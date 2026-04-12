@@ -3,12 +3,12 @@ export interface GeoJsonPolygon {
   coordinates: number[][][]
 }
 
-export interface ExtractPolygon {
+export interface ExtractFilter {
   id: string
+  polygon_id: string
   name: string
   georeference: GeoJsonPolygon
   city: string
-  enabled: boolean
   property_type: string | null
   property_status: string | null
   min_price: number | null
@@ -26,8 +26,9 @@ export interface ExtractPolygon {
   max_age: number | null
 }
 
-export interface AnalyzePolygon {
+export interface AnalyzeFilter {
   id: string
+  polygon_id: string
   name: string
   georeference: GeoJsonPolygon
   city: string
@@ -86,7 +87,7 @@ export type PlatformId = "metroCuadrado" | "fincaRaiz"
 export interface PlatformClient {
   name: PlatformId
   fetchProperties(
-    polygon: ExtractPolygon,
+    filter: ExtractFilter,
     params: ExtractParams,
     since: Date | null,
   ): Promise<RawProperty[]>

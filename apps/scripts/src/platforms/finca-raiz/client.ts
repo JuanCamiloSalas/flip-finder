@@ -5,7 +5,7 @@ import {
 } from "../dictionary.js"
 import { transformFincaRaiz } from "./transformer.js"
 import type {
-  ExtractPolygon,
+  ExtractFilter,
   ExtractParams,
   RawProperty,
   PlatformClient,
@@ -15,7 +15,7 @@ const API_URL =
   "https://search-service.fincaraiz.com.co/api/v1/properties/search"
 const ROWS_PER_PAGE = 22
 
-function buildParams(polygon: ExtractPolygon, params: ExtractParams, page: number) {
+function buildParams(polygon: ExtractFilter, params: ExtractParams, page: number) {
   // Convert GeoJSON [lng, lat] to FincaRaiz { latitude, longitude } objects
   const mapPolygons = [
     polygon.georeference.coordinates[0].map((coord) => ({
@@ -67,7 +67,7 @@ function buildParams(polygon: ExtractPolygon, params: ExtractParams, page: numbe
 }
 
 async function fetchPage(
-  polygon: ExtractPolygon,
+  polygon: ExtractFilter,
   params: ExtractParams,
   page: number,
 ): Promise<{
@@ -110,7 +110,7 @@ async function fetchPage(
 }
 
 async function fetchAllProperties(
-  polygon: ExtractPolygon,
+  polygon: ExtractFilter,
   params: ExtractParams,
   since: Date | null,
 ): Promise<RawProperty[]> {

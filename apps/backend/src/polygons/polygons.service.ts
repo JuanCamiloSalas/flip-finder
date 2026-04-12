@@ -3,42 +3,10 @@ import { PrismaService } from "../prisma/prisma.service"
 import { CreatePolygonDto } from "./dto/create-polygon.dto"
 import { UpdatePolygonDto } from "./dto/update-polygon.dto"
 
-const FILTER_COLUMNS = [
-  "property_type",
-  "property_status",
-  "min_price",
-  "max_price",
-  "min_bedrooms",
-  "max_bedrooms",
-  "min_bathrooms",
-  "max_bathrooms",
-  "min_area",
-  "max_area",
-  "parking",
-  "min_stratum",
-  "max_stratum",
-  "min_age",
-  "max_age",
-  "deviation_threshold",
-] as const
-
-const ENUM_COLUMNS: Record<string, string> = {
-  property_type: '"PropertyType"',
-  property_status: '"PropertyStatus"',
-}
-
 const SELECT_COLUMNS = `
   id, name,
   ST_AsGeoJSON(georeference)::text AS georeference,
-  city, polygon_type, enabled,
-  property_type, property_status,
-  min_price, max_price,
-  min_bedrooms, max_bedrooms,
-  min_bathrooms, max_bathrooms,
-  min_area, max_area,
-  parking,
-  min_stratum, max_stratum, min_age, max_age,
-  deviation_threshold, created_at, updated_at
+  city, enabled, created_at, updated_at
 `
 
 interface PolygonRow {
@@ -46,24 +14,7 @@ interface PolygonRow {
   name: string
   georeference: string
   city: string
-  polygon_type: string
   enabled: boolean
-  property_type: string | null
-  property_status: string | null
-  min_price: number | null
-  max_price: number | null
-  min_bedrooms: number | null
-  max_bedrooms: number | null
-  min_bathrooms: number | null
-  max_bathrooms: number | null
-  min_area: number | null
-  max_area: number | null
-  parking: boolean | null
-  min_stratum: number | null
-  max_stratum: number | null
-  min_age: number | null
-  max_age: number | null
-  deviation_threshold: number | null
   created_at: Date
   updated_at: Date
 }
@@ -75,35 +26,16 @@ export class PolygonsService {
   async create(dto: CreatePolygonDto) {
     const geojson = JSON.stringify(dto.georeference)
 
-    const columns = ["id", "name", "georeference", "city", "polygon_type", "enabled", "created_at", "updated_at"]
-    const placeholders = [
-      "gen_random_uuid()",
-      "$1",
-      "ST_GeomFromGeoJSON($2)",
-      "$3",
-      `$4::"PolygonType"`,
-      "$5",
-      "NOW()",
-      "NOW()",
-    ]
-    const values: unknown[] = [dto.name, geojson, dto.city, dto.polygon_type, dto.enabled ?? true]
+    const rows = await this.prisma.$queryRawUnsafe<PolygonRow[]>(
+      `INSERT INTO polygons (id, name, georeference, city, enabled, created_at, updated_at)
+       VALUES (gen_random_uuid(), $1, ST_GeomFromGeoJSON($2), $3, $4, NOW(), NOW())
+       RETURNING ${SELECT_COLUMNS}`,
+      dto.name,
+      geojson,
+      dto.city,
+      dto.enabled ?? true,
+    )
 
-    for (const col of FILTER_COLUMNS) {
-      if (dto[col] !== undefined) {
-        values.push(dto[col])
-        const idx = `$${values.length}`
-        columns.push(col)
-        placeholders.push(ENUM_COLUMNS[col] ? `${idx}::${ENUM_COLUMNS[col]}` : idx)
-      }
-    }
-
-    const query = `
-      INSERT INTO polygons (${columns.join(", ")})
-      VALUES (${placeholders.join(", ")})
-      RETURNING ${SELECT_COLUMNS}
-    `
-
-    const rows = await this.prisma.$queryRawUnsafe<PolygonRow[]>(query, ...values)
     return this.formatRow(rows[0])
   }
 
@@ -149,22 +81,9 @@ export class PolygonsService {
       setClauses.push(`city = $${values.length}`)
     }
 
-    if (dto.polygon_type !== undefined) {
-      values.push(dto.polygon_type)
-      setClauses.push(`polygon_type = $${values.length}::"PolygonType"`)
-    }
-
     if (dto.enabled !== undefined) {
       values.push(dto.enabled)
       setClauses.push(`enabled = $${values.length}`)
-    }
-
-    for (const col of FILTER_COLUMNS) {
-      if (dto[col] !== undefined) {
-        values.push(dto[col])
-        const idx = `$${values.length}`
-        setClauses.push(ENUM_COLUMNS[col] ? `${col} = ${idx}::${ENUM_COLUMNS[col]}` : `${col} = ${idx}`)
-      }
     }
 
     if (setClauses.length === 0) {
