@@ -220,7 +220,7 @@ export async function getFilteredProperties(filter: AnalyzeFilter): Promise<Cand
   addFilterConditions(filter, conditions, values)
 
   const query = `
-    SELECT p.id, p.link, p.price_per_sqm::float, p.price::float, p.area::float, p.address, p.neighborhood
+    SELECT p.id, p.link, p.price_per_sqm, p.price::float, p.area::float, p.address, p.neighborhood
     FROM properties p
     WHERE ${conditions.join(" AND ")}
       AND p.latitude IS NOT NULL AND p.longitude IS NOT NULL
@@ -253,7 +253,7 @@ export async function getMedianPricePerSqm(filter: AnalyzeFilter): Promise<numbe
   addFilterConditions(filter, conditions, values)
 
   const query = `
-    SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY p.price_per_sqm::float) AS median
+    SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY p.price_per_sqm) AS median
     FROM properties p
     WHERE ${conditions.join(" AND ")}
       AND p.latitude IS NOT NULL AND p.longitude IS NOT NULL
