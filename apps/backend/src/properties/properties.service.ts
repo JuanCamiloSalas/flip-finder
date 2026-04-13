@@ -449,6 +449,7 @@ export class PropertiesService {
       ...row,
       price: Number(row.price),
       admin_price: Number(row.admin_price),
+      price_per_sqm: Number(row.price_per_sqm),
     }
   }
 }
