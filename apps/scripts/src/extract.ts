@@ -1,10 +1,4 @@
-import {
-  getExtractFilters,
-  getLastExecution,
-  upsertProperties,
-  createExecution,
-  disconnect,
-} from "./db.js"
+import { getExtractFilters, getLastExecution, upsertProperties, createExecution, disconnect } from "./db.js"
 import { metroCuadradoClient } from "./platforms/metro-cuadrado/client.js"
 import { fincaRaizClient } from "./platforms/finca-raiz/client.js"
 import type { PlatformClient, ExtractFilter, ExtractParams, RawProperty } from "./types.js"
@@ -97,21 +91,12 @@ async function main() {
 
     for (const platform of platforms) {
       try {
-        const properties = await platform.fetchProperties(
-          filter,
-          params,
-          lastExecution,
-        )
-        console.log(
-          `  ${platform.name}: ${properties.length} properties fetched`,
-        )
+        const properties = await platform.fetchProperties(filter, params, lastExecution)
+        console.log(`  ${platform.name}: ${properties.length} properties fetched`)
         allProperties.push(...properties)
       } catch (error) {
         hasFailed = true
-        console.error(
-          `  ${platform.name}: Error fetching properties:`,
-          error instanceof Error ? error.message : error,
-        )
+        console.error(`  ${platform.name}: Error fetching properties:`, error instanceof Error ? error.message : error)
       }
     }
 
@@ -123,15 +108,27 @@ async function main() {
       return true
     })
 
-    const withTimestamp = validProperties.map((p) => ({
+    console.log(`  ${validProperties.length} valid properties after filtering duplicates and missing IDs`)
+
+    // Discard properties outside the filter's price range
+    const priceFiltered = validProperties.filter((p) => {
+      if (filter.min_price !== null && p.price < filter.min_price) return false
+      if (filter.max_price !== null && p.price > filter.max_price) return false
+      return true
+    })
+
+    if (priceFiltered.length < validProperties.length) {
+      console.log(`  Discarded ${validProperties.length - priceFiltered.length} properties outside price range`)
+    }
+
+    const withTimestamp = priceFiltered.map((p) => ({
       ...p,
       avg_age: parseAvgAge(p.age),
       extracted_at: performedAt,
     }))
 
     console.log(`  Upserting ${withTimestamp.length} properties into DB...`)
-    const upserted =
-      withTimestamp.length > 0 ? await upsertProperties(withTimestamp) : 0
+    const upserted = withTimestamp.length > 0 ? await upsertProperties(withTimestamp) : 0
     totalUpserted += upserted
     console.log(`  Upserted ${upserted} properties into DB`)
 
