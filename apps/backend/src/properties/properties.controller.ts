@@ -20,7 +20,8 @@ export class PropertiesController {
   @Get()
   @ApiOperation({ summary: "List properties with optional filters" })
   @ApiQuery({ name: "format", required: false, enum: ["json", "csv"] })
-  @ApiQuery({ name: "polygon_filter_id", required: false, description: "Filter properties by polygon filter criteria" })
+  @ApiQuery({ name: "polygon_id", required: false, description: "Properties inside a polygon (spatial only)" })
+  @ApiQuery({ name: "polygon_filter_id", required: false, description: "Properties by polygon filter criteria + spatial" })
   @ApiQuery({ name: "min_area", required: false, description: "Min area or 'null' for empty" })
   @ApiQuery({ name: "max_area", required: false, description: "Max area or 'null' for empty" })
   @ApiQuery({ name: "state", required: false, description: "ORIGINAL, REMODELED or 'null' for empty" })
@@ -30,6 +31,7 @@ export class PropertiesController {
   @ApiQuery({ name: "duplicated_of", required: false, description: "'has' for duplicates, 'null' for non-duplicates" })
   async findAll(
     @Query("format") format: string,
+    @Query("polygon_id") polygonId: string,
     @Query("polygon_filter_id") polygonFilterId: string,
     @Query("min_area") minArea: string,
     @Query("max_area") maxArea: string,
@@ -40,7 +42,7 @@ export class PropertiesController {
     @Query("duplicated_of") duplicatedOf: string,
     @Res() res: Response,
   ) {
-    const filters = { polygonFilterId, minArea, maxArea, state, floor, reviewed, avgAge, duplicatedOf }
+    const filters = { polygonId, polygonFilterId, minArea, maxArea, state, floor, reviewed, avgAge, duplicatedOf }
 
     if (format === "csv") {
       const csv = await this.propertiesService.findAllCsv(filters)
