@@ -77,6 +77,7 @@ export interface RawProperty {
   elevator: boolean
   stratum: number
   parking: boolean
+  description: string | null
   notes: string | null
   latitude: number | null
   longitude: number | null
