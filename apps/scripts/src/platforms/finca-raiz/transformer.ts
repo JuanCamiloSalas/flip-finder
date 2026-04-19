@@ -18,6 +18,7 @@ interface FrHit {
       }
       technicalSheet?: { field: string; value: string }[]
       facilities?: { name: string }[]
+      images?: { image: string }[]
       latitude?: number
       longitude?: number
     }
@@ -97,6 +98,7 @@ export function transformFincaRaiz(raw: unknown): RawProperty {
     parking: garage >= 1,
     description: listing?.description ?? null,
     notes: extractNotes(listing?.description),
+    images: listing?.images?.map((img) => img.image) ?? [],
     latitude: listing?.latitude ?? null,
     longitude: listing?.longitude ?? null,
   }

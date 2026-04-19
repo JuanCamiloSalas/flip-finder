@@ -66,6 +66,7 @@ export async function upsertProperties(
     parking: boolean
     description: string | null
     notes: string | null
+    images: string[]
     latitude: number | null
     longitude: number | null
     avg_age: number | null
@@ -87,15 +88,15 @@ export async function upsertProperties(
         p.id, p.link, p.state, p.area, p.price, p.age,
         p.admin_price, p.price_per_sqm, p.address, p.neighborhood,
         p.rooms, p.bathrooms, p.floor, p.elevator, p.stratum,
-        p.parking, p.description, p.notes, p.latitude, p.longitude, p.avg_age, p.extracted_at,
+        p.parking, p.description, p.notes, p.images, p.latitude, p.longitude, p.avg_age, p.extracted_at,
       )
       rows.push(`(
         $${offset + 1}, $${offset + 2}, $${offset + 3}::"PropertyState",
         $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8},
         $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12},
         $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16},
-        $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21},
-        false, NOW(), $${offset + 22}
+        $${offset + 17}, $${offset + 18}, $${offset + 19}::text[], $${offset + 20}, $${offset + 21}, $${offset + 22},
+        false, NOW(), $${offset + 23}
       )`)
     }
 
@@ -103,7 +104,7 @@ export async function upsertProperties(
       INSERT INTO properties (
         id, link, state, area, price, age, admin_price, price_per_sqm,
         address, neighborhood, rooms, bathrooms, floor, elevator,
-        stratum, parking, description, notes, latitude, longitude, avg_age,
+        stratum, parking, description, notes, images, latitude, longitude, avg_age,
         reviewed, created_at, extracted_at
       ) VALUES ${rows.join(", ")}
       ON CONFLICT (id) DO UPDATE SET
@@ -124,6 +125,7 @@ export async function upsertProperties(
         parking = EXCLUDED.parking,
         description = EXCLUDED.description,
         notes = EXCLUDED.notes,
+        images = EXCLUDED.images,
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,
         avg_age = EXCLUDED.avg_age,
