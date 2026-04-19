@@ -19,6 +19,12 @@ interface McProperty {
   extraFeatures?: string[]
   comments?: string
   location?: { lat?: number; lon?: number }
+  multimedia?: {
+    images?: {
+      files?: string[]
+      mainFile?: string
+    }
+  }
 }
 
 function extractFeatureValue(
@@ -60,9 +66,12 @@ export function transformMetroCuadrado(raw: unknown): RawProperty {
   const area = element.area ?? element.builtArea ?? 0
   const price = element.price ?? element.salePrice ?? 0
   const floor = Number(extractFeatureValue(element.features, "nroPiso")) || 0
+  const metroId = element.metroId ?? ""
+  const imageFiles = element.multimedia?.images?.files ?? []
+  const images = imageFiles.map((f) => `https://multimedia.metrocuadrado.com/${metroId}/${f}_x.jpg`)
 
   return {
-    id: element.metroId ?? "",
+    id: metroId,
     link: element.url
       ? `https://www.metrocuadrado.com${element.url}`
       : "",
@@ -82,6 +91,7 @@ export function transformMetroCuadrado(raw: unknown): RawProperty {
     parking: (element.parkingNumber ?? 0) >= 1,
     description: element.comments ?? null,
     notes: extractNotes(element.comments),
+    images,
     latitude: element.location?.lat ?? null,
     longitude: element.location?.lon ?? null,
   }

@@ -79,6 +79,7 @@ export interface RawProperty {
   parking: boolean
   description: string | null
   notes: string | null
+  images: string[]
   latitude: number | null
   longitude: number | null
 }
