@@ -80,6 +80,7 @@ export function transformMetroCuadrado(raw: unknown): RawProperty {
     elevator: detectElevator(element),
     stratum: element.stratum ?? 0,
     parking: (element.parkingNumber ?? 0) >= 1,
+    description: element.comments ?? null,
     notes: extractNotes(element.comments),
     latitude: element.location?.lat ?? null,
     longitude: element.location?.lon ?? null,

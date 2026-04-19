@@ -44,6 +44,33 @@ function parseAvgAge(age: string): number | null {
   return AGE_MAP[age] ?? null
 }
 
+const FLOOR_PATTERNS: { floor: number; patterns: string[] }[] = [
+  { floor: 1, patterns: ["1 piso", "1er piso", "piso 1", "piso 1ro", "primer piso", "piso primero", "1° piso", "piso 1°", "piso no. 1", "piso no.1", "piso #1", "piso # 1"] },
+  { floor: 2, patterns: ["2 piso", "2do piso", "piso 2", "piso 2do", "segundo piso", "piso segundo", "2° piso", "piso 2°", "piso no. 2", "piso no.2", "piso #2", "piso # 2"] },
+  { floor: 3, patterns: ["3 piso", "3er piso", "piso 3", "piso 3ro", "tercer piso", "piso tercero", "3° piso", "piso 3°", "piso no. 3", "piso no.3", "piso #3", "piso # 3"] },
+  { floor: 4, patterns: ["4 piso", "4to piso", "piso 4", "piso 4to", "cuarto piso", "piso cuarto", "4° piso", "piso 4°", "piso no. 4", "piso no.4", "piso #4", "piso # 4"] },
+  { floor: 5, patterns: ["5 piso", "5to piso", "piso 5", "piso 5to", "quinto piso", "piso quinto", "5° piso", "piso 5°", "piso no. 5", "piso no.5", "piso #5", "piso # 5"] },
+  { floor: 6, patterns: ["6 piso", "6to piso", "piso 6", "piso 6to", "sexto piso", "piso sexto", "6° piso", "piso 6°", "piso no. 6", "piso no.6", "piso #6", "piso # 6"] },
+  { floor: 7, patterns: ["7 piso", "7mo piso", "piso 7", "piso 7mo", "septimo piso", "séptimo piso", "piso septimo", "piso séptimo", "7° piso", "piso 7°", "piso no. 7", "piso no.7", "piso #7", "piso # 7"] },
+  { floor: 8, patterns: ["8 piso", "8vo piso", "piso 8", "piso 8vo", "octavo piso", "piso octavo", "8° piso", "piso 8°", "piso no. 8", "piso no.8", "piso #8", "piso # 8"] },
+  { floor: 9, patterns: ["9 piso", "9no piso", "piso 9", "piso 9no", "noveno piso", "piso noveno", "9° piso", "piso 9°", "piso no. 9", "piso no.9", "piso #9", "piso # 9"] },
+  { floor: 10, patterns: ["10 piso", "10mo piso", "piso 10", "piso 10mo", "decimo piso", "décimo piso", "piso decimo", "piso décimo", "10° piso", "piso 10°", "piso no. 10", "piso no.10", "piso #10", "piso # 10"] },
+  { floor: 11, patterns: ["11 piso", "piso 11", "piso no. 11", "piso no.11", "piso #11", "piso # 11", "11° piso", "piso 11°"] },
+  { floor: 12, patterns: ["12 piso", "piso 12", "piso no. 12", "piso no.12", "piso #12", "piso # 12", "12° piso", "piso 12°"] },
+  { floor: 13, patterns: ["13 piso", "piso 13", "piso no. 13", "piso no.13", "piso #13", "piso # 13", "13° piso", "piso 13°"] },
+  { floor: 14, patterns: ["14 piso", "piso 14", "piso no. 14", "piso no.14", "piso #14", "piso # 14", "14° piso", "piso 14°"] },
+  { floor: 15, patterns: ["15 piso", "piso 15", "piso no. 15", "piso no.15", "piso #15", "piso # 15", "15° piso", "piso 15°"] },
+]
+
+function inferFloorFromDescription(description: string | null): number | null {
+  if (!description) return null
+  const lower = description.toLowerCase()
+  for (const { floor, patterns } of FLOOR_PATTERNS) {
+    if (patterns.some((p) => lower.includes(p))) return floor
+  }
+  return null
+}
+
 function buildParams(filter: ExtractFilter): ExtractParams {
   return {
     propertyType: (filter.property_type ? PROPERTY_TYPE_MAP[filter.property_type] : undefined) ?? "apartment",
@@ -119,6 +146,21 @@ async function main() {
 
     if (priceFiltered.length < validProperties.length) {
       console.log(`  Discarded ${validProperties.length - priceFiltered.length} properties outside price range`)
+    }
+
+    // Infer floor from description when missing
+    let floorsInferred = 0
+    for (const p of priceFiltered) {
+      if (p.floor === 0) {
+        const inferred = inferFloorFromDescription(p.description)
+        if (inferred !== null) {
+          p.floor = inferred
+          floorsInferred++
+        }
+      }
+    }
+    if (floorsInferred > 0) {
+      console.log(`  Inferred floor from description for ${floorsInferred} properties`)
     }
 
     const withTimestamp = priceFiltered.map((p) => ({

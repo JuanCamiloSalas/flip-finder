@@ -95,6 +95,7 @@ export function transformFincaRaiz(raw: unknown): RawProperty {
     elevator: hasElevator,
     stratum,
     parking: garage >= 1,
+    description: listing?.description ?? null,
     notes: extractNotes(listing?.description),
     latitude: listing?.latitude ?? null,
     longitude: listing?.longitude ?? null,

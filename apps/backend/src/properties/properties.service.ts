@@ -60,6 +60,7 @@ interface PropertyRow {
 }
 
 interface PropertyFilters {
+  polygonId?: string
   polygonFilterId?: string
   minArea?: string
   maxArea?: string
@@ -338,7 +339,13 @@ export class PropertiesService {
     const conditions: string[] = []
     const values: unknown[] = []
 
-    if (filters?.polygonFilterId) {
+    if (filters?.polygonId) {
+      values.push(filters.polygonId)
+      conditions.push(`p.latitude IS NOT NULL AND p.longitude IS NOT NULL AND ST_Contains(
+        (SELECT georeference FROM polygons WHERE id = $${values.length}),
+        ST_SetSRID(ST_MakePoint(p.longitude, p.latitude), 4326)
+      )`)
+    } else if (filters?.polygonFilterId) {
       values.push(filters.polygonFilterId)
       const pidx = values.length
 

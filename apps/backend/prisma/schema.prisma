@@ -53,6 +53,7 @@ model Property {
   elevator       Boolean       @default(false)
   stratum        Int           @db.SmallInt
   parking        Boolean       @default(false)
+  description    String?       @db.Text
   notes          String?       @db.Text
   latitude       Decimal?      @db.Decimal(10, 7)
   longitude      Decimal?      @db.Decimal(10, 7)
